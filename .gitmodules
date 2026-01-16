@@ -1,0 +1,3 @@
+[submodule "Assets/MahuniStudios/TwitchWebRequest"]
+	path = Assets/MahuniStudios/TwitchWebRequest
+	url = https://github.com/mahuni-game-studios/twitch-web-request-unity-extension
