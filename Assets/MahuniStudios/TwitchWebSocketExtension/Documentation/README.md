@@ -109,7 +109,7 @@ public class YourUnityClass : MonoBehaviour
         Subscribe();
     }
       
-    private async void Subscribe(string subscription)
+    private async void Subscribe()
     {
         // Create the subscription request
         TwitchEventSub.ReadChatSubscription readChatReadSubscription = new(twitchWebSocket.SessionId, twitchWebRequestHandler.BroadcasterID, twitchWebRequestHandler.BroadcasterID);
