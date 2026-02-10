@@ -70,7 +70,7 @@ public class YourUnityClass : MonoBehaviour
 }
 ```
 
-### Eventsub subription
+### Eventsub subscription
 
 Please note that subscribing to the EventSub only works after successful authentication.
 
@@ -112,9 +112,9 @@ public class YourUnityClass : MonoBehaviour
     private async void Subscribe()
     {
         // Create the subscription request
-        TwitchEventSub.ReadChatSubscription readChatReadSubscription = new(twitchWebSocket.SessionId, twitchWebRequestHandler.BroadcasterID, twitchWebRequestHandler.BroadcasterID);
+        TwitchEventSub.ReadChatSubscription readChatSubscription = new(twitchWebSocket.SessionId, twitchWebRequestHandler.BroadcasterID, twitchWebRequestHandler.BroadcasterID);
         
-        var response = await TwitchEventSub.Subscribe(JsonUtility.ToJson(readChatReadSubscription));
+        var response = await TwitchEventSub.Subscribe(readChatSubscription.ToJson());
         if (response.responseCode == TwitchResponseCode.ACCEPTED)
         {
             // The subscription was accepted, notifications will now be pushed to the web socket
@@ -142,7 +142,7 @@ This repository uses the [Unity Twitch Web Request Extension by Mahuni Game Stud
 
 - To clone the repository with submodules: `git clone --recurse-submodules`
 - To update the cloned repository to get the submodules: `git submodule update --init --recursive`
-- To download the extension, go to [GitHub](https://github.com/mahuni-game-studios/twitch-authentication-unity-extension), download it and drag and drop it somewhere into the `Assets/` folder
+- To download the extension, go to [GitHub](https://github.com/mahuni-game-studios/twitch-web-request-unity-extension), download it and drag and drop it somewhere into the `Assets/` folder
 
 #### Demo scene
 
