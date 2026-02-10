@@ -2,6 +2,8 @@
 
 // ReSharper disable InconsistentNaming
 
+using Newtonsoft.Json.Linq;
+
 namespace Mahuni.Twitch.Extension
 {
     using System;
@@ -21,83 +23,101 @@ namespace Mahuni.Twitch.Extension
         {
             return await TwitchRequest.AwaitablePost("eventsub/subscriptions", subscription);
         }
-        
-        [Serializable]
-        public class BaseSubscription
-        {
-            public string type;
-            public string version;
 
-            public BaseSubscription(string type, string version = "1")
+        #region Subscriptions
+        
+        public class TwitchSubscription
+        {
+            protected JObject jsonObject;
+            public string ToJson()
             {
-                this.type = type;
-                this.version = version;
+                return jsonObject.ToString();
             }
         }
         
-        [Serializable]
-        public class BaseCondition
-        {
-            public string broadcaster_user_id;
-
-            public BaseCondition(string broadcaster_user_id)
-            {
-                this.broadcaster_user_id = broadcaster_user_id;
-            }
-        }
-        
-        [Serializable]
-        public class Transport
-        {
-            public string method;
-            public string session_id;
-
-            public Transport(string sessionId)
-            {
-                method = "websocket";
-                session_id = sessionId;
-            }
-        }
-
         // https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelchatmessage
-        [Serializable]
-        public class ReadChatSubscription : BaseSubscription
+        public class ChatReadSubscription : TwitchSubscription
         {
-            public static string subscriptionPermission = "user:read:chat";
-            public Condition condition;
-            public Transport transport;
-
-            [Serializable]
-            public class Condition : BaseCondition
+            public const string subscriptionType = "channel.chat.message";
+            public ChatReadSubscription(string sessionId, string broadcasterUserId, string userId)
             {
-                public string user_id;
-
-                public Condition(string broadcaster_user_id, string user_id) : base(broadcaster_user_id)
+                jsonObject = JObject.FromObject(new
                 {
-                    this.user_id = user_id;
+                    type = subscriptionType,
+                    version = "1",
+                    condition = new
+                    {
+                        broadcaster_user_id = broadcasterUserId,
+                        user_id = userId
+                    },
+                    transport = new
+                    {
+                        method = "websocket",
+                        session_id = sessionId
+                    }
+                });
+            }
+        }
+        
+        // https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelpollbegin
+        public class PollBeginSubscription : TwitchSubscription
+        {
+            public const string subscriptionType = "channel.poll.begin";
+            public PollBeginSubscription(string sessionId, string broadcasterUserId)
+            {
+                jsonObject = JObject.FromObject(new
+                {
+                    type = subscriptionType,
+                    version = "1",
+                    condition = new
+                    {
+                        broadcaster_user_id = broadcasterUserId
+                    },
+                    transport = new
+                    {
+                        method = "websocket",
+                        session_id = sessionId
+                    }
+                });
+            }
+        }
+        
+        #endregion
+
+        #region Notification Events
+
+        //https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-chat-message-event
+        public class ChatReadEvent
+        {
+            public readonly string userName;
+            public readonly string message;
+            
+            public ChatReadEvent(string data)
+            {
+                JObject root = JObject.Parse(data);
+                
+                JToken nameToken = root.SelectToken("chatter_user_name");
+                if (nameToken != null)
+                {
+                    userName = nameToken.ToString();
+                }
+                else
+                {
+                    Debug.LogError($"TwitchEventSub: Could not get chatter name from ChatReadSubscription");
+                }
+                
+                JToken msgToken = root.SelectToken("message.text");
+                if (msgToken != null)
+                {
+                    message = msgToken.ToString();
+                }
+                else
+                {
+                    Debug.LogError($"TwitchEventSub: Could not get chatter message from ChatReadSubscription");
                 }
             }
-
-            public ReadChatSubscription(string sessionId, string broadcasterUserId, string userId) : base("channel.chat.message")
-            {
-                condition = new Condition(broadcasterUserId, userId);
-                transport = new Transport(sessionId);
-            }
         }
 
-        // https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelpollbegin
-        [Serializable]
-        public class BeginPollSubscription : BaseSubscription
-        {
-            public static string subscriptionPermission = TwitchAuthentication.ConnectionInformation.CHANNEL_MANAGE_POLLS;
-            public BaseCondition condition;
-            public Transport transport;
-
-            public BeginPollSubscription(string sessionId, string broadcasterUserId) : base("channel.poll.begin")
-            {
-                condition = new BaseCondition(broadcasterUserId);
-                transport = new Transport(sessionId);
-            }
-        }
+        #endregion
     }
 }

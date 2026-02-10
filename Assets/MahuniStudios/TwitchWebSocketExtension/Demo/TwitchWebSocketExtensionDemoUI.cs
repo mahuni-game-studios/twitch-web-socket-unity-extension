@@ -64,7 +64,7 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
     private void OnAuthenticationButtonClicked()
     {
         authenticationDescriptionText.text = "<color=\"orange\">Authentication ongoing...";
-        TwitchAuthentication.ConnectionInformation infos = new(twitchClientIdText.text, new List<string> { TwitchEventSub.ReadChatSubscription.subscriptionPermission });
+        TwitchAuthentication.ConnectionInformation infos = new(twitchClientIdText.text, new List<string> { TwitchAuthentication.ConnectionInformation.USER_CHAT_READ });
         TwitchAuthentication.StartAuthenticationValidation(this, infos);
     }
 
@@ -128,6 +128,7 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
         ValidateFields();
 
         // At least one subscription needs to be sent in the first 10 seconds of connection, else the connection is closed automatically
+        twitchWebSocket.OnNotification += OnNotification;
         SubscribeToChat();
     }
 
@@ -144,6 +145,19 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
     #endregion
 
     #region EventSub
+    
+    /// <summary>
+    /// A notification was received from any subscriptions
+    /// </summary>
+    /// <param name="notification">The notification message</param>
+    private void OnNotification(TwitchNotificationMessage notification)
+    {
+        if (notification.subscriptionType.Equals(TwitchEventSub.ChatReadSubscription.subscriptionType))
+        {
+            TwitchEventSub.ChatReadEvent chat = new(notification.eventContent);
+            Debug.Log($"Chatter '{chat.userName}' wrote: '{chat.message}'");
+        }
+    }
 
     /// <summary>
     /// Subscribe to the EventSub
@@ -151,8 +165,8 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
     /// </summary>
     private async void SubscribeToChat()
     {
-        TwitchEventSub.ReadChatSubscription readChatReadSubscription = new(twitchWebSocket.SessionId, twitchWebRequestHandler.BroadcasterID, twitchWebRequestHandler.BroadcasterID);
-        var response = await TwitchEventSub.Subscribe(JsonUtility.ToJson(readChatReadSubscription));
+        TwitchEventSub.ChatReadSubscription chatReadChatReadSubscription = new(twitchWebSocket.SessionId, twitchWebRequestHandler.BroadcasterID, twitchWebRequestHandler.BroadcasterID);
+        var response = await TwitchEventSub.Subscribe(chatReadChatReadSubscription.ToJson());
         if (response.responseCode == TwitchResponseCode.ACCEPTED)
         {
             // The subscription was accepted, notifications will now be pushed to the web socket
