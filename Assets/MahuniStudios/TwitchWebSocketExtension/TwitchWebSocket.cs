@@ -1,6 +1,7 @@
 // © Copyright 2026 Mahuni Game Studios
 
 // ReSharper disable InconsistentNaming
+
 using Newtonsoft.Json.Linq;
 
 namespace Mahuni.Twitch.Extension
@@ -19,13 +20,14 @@ namespace Mahuni.Twitch.Extension
     /// </summary>
     public class TwitchWebSocket
     {
-        public event Action OnSession; // TODO: this does not work as invoking it from the thread blocks the listening method!
+        public event Action OnSession;
         public event Action<TwitchNotificationMessage> OnNotification;
         public string SessionId { get; private set; }
         public bool Connected => socket is { State: WebSocketState.Open };
 
         private ClientWebSocket socket;
         private CancellationTokenSource cancellationToken;
+        private static SynchronizationContext unityContext;
         private const string twitchWebSocketUrl = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=";
         private const int keepAliveTimeout = 30;
         private const int receiveBufferSize = 8192;
@@ -54,25 +56,18 @@ namespace Mahuni.Twitch.Extension
         {
             Debug.Log("TwitchWebSocket: Connecting...");
 
-            if (socket != null)
-            {
-                if (socket.State == WebSocketState.Open)
-                {
-                    Debug.Log("TwitchWebSocket: Connected.");
-                    return;
-                }
+            unityContext ??= SynchronizationContext.Current;
 
-                socket.Dispose();
-            }
-
+            socket?.Dispose();
             socket = new ClientWebSocket();
+
             cancellationToken?.Dispose();
             cancellationToken = new CancellationTokenSource();
 
-            await socket.ConnectAsync(new Uri(twitchWebSocketUrl + keepAliveTimeout), cancellationToken.Token);
+            await socket.ConnectAsync(new Uri(twitchWebSocketUrl + keepAliveTimeout), cancellationToken.Token).ConfigureAwait(false);
             Debug.Log("TwitchWebSocket: Connected.");
 
-            await Task.Factory.StartNew(ReceiveLoop, cancellationToken.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            _ = Task.Run(ReceiveLoop);
         }
 
         /// <summary>
@@ -102,55 +97,47 @@ namespace Mahuni.Twitch.Extension
 
             Debug.Log("TwitchWebSocket: Disconnected.");
         }
-
+        
         /// <summary>
         /// Read the incoming web socket data while connected 
         /// </summary>
         private async Task ReceiveLoop()
         {
             Debug.Log("TwitchWebSocket: Receive loop started.");
-            MemoryStream outputStream = null;
             byte[] buffer = new byte[receiveBufferSize];
 
             try
             {
-                while (socket != null && !cancellationToken.Token.IsCancellationRequested)
+                while (!cancellationToken.Token.IsCancellationRequested)
                 {
-                    outputStream = new MemoryStream(receiveBufferSize);
-
-                    WebSocketReceiveResult receiveResult;
+                    using MemoryStream outputStream = new(receiveBufferSize);
+                    WebSocketReceiveResult result;
                     do
                     {
-                        receiveResult = await socket.ReceiveAsync(buffer, cancellationToken.Token);
-                        if (receiveResult.MessageType != WebSocketMessageType.Close)
+                        result = await socket.ReceiveAsync(buffer, cancellationToken.Token).ConfigureAwait(false);
+                        if (result.MessageType != WebSocketMessageType.Close)
                         {
-                            outputStream.Write(buffer, 0, receiveResult.Count);
+                            outputStream.Write(buffer, 0, result.Count);
                         }
-                    } while (!receiveResult.EndOfMessage);
+                    } 
+                    while (!result.EndOfMessage);
 
                     // https://dev.twitch.tv/docs/eventsub/handling-websocket-events/#close-message
-                    if (receiveResult.MessageType == WebSocketMessageType.Close)
+                    if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        Debug.LogWarning($"TwitchWebSocket: Closing connection with status code '{receiveResult.CloseStatus.ToString()}' ({receiveResult.CloseStatus.Value}), Description '{receiveResult.CloseStatusDescription}'.");
+                        Debug.LogWarning($"TwitchWebSocket: Closing connection with status code '{result.CloseStatus.ToString()}' ({result.CloseStatus.Value}), Description '{result.CloseStatusDescription}'.");
                         break;
                     }
 
                     OnResponseReceived(outputStream);
                 }
             }
-            catch (TaskCanceledException e)
+            catch (Exception ex)
             {
-                Debug.LogError($"TwitchWebSocket: Receive loop exception --> {e}");
+                Debug.LogError($"TwitchWebSocket: Receive loop error: {ex}");
             }
-            catch (Exception e)
-            {
-                Debug.LogError($"TwitchWebSocket: Receive loop exception --> {e}");
-            }
-            finally
-            {
-                outputStream?.Dispose();
-                Debug.Log("TwitchWebSocket: Receive loop stopped.");
-            }
+
+            Debug.Log("TwitchWebSocket: Receive loop stopped.");
         }
 
         /// <summary>
@@ -171,10 +158,8 @@ namespace Mahuni.Twitch.Extension
                 case MessageType.session_welcome:
                     TwitchWelcomeMessage welcome = new(data);
                     SessionId = welcome.sessionId;
-                    Debug.Log($"TwitchWebSocket: Session ID: '{SessionId}'");
-
-                    // TODO: seems like invoke is synchronous and blocks the listening methods?! Also BeginInvoke does not solve the issue...
-                    //OnSession?.BeginInvoke(OnSession.EndInvoke, null);
+                    // Pass information to the Unity thread
+                    unityContext.Post(_ => { OnSession?.Invoke(); }, null);
                     break;
                 case MessageType.session_keepalive:
                     TwitchKeepaliveMessage keepalive = new(data);
@@ -184,7 +169,8 @@ namespace Mahuni.Twitch.Extension
                     break;
                 case MessageType.notification:
                     TwitchNotificationMessage notificationMessage = new(data);
-                    OnNotification?.Invoke(notificationMessage);
+                    // Pass information to the Unity thread
+                    unityContext.Post(_ => { OnNotification?.Invoke(notificationMessage); }, null);
                     break;
                 case MessageType.revocation:
                     TwitchRevocationMessage revocation = new(data);
@@ -207,16 +193,8 @@ namespace Mahuni.Twitch.Extension
             {
                 JObject root = JObject.Parse(data);
                 JToken typeToken = root.SelectToken("metadata.message_type");
-
                 string messageType = typeToken == null ? MessageType.revocation.ToString() : typeToken.ToString();
-
-                if (messageType.Equals(MessageType.session_welcome.ToString())) return MessageType.session_welcome;
-                if (messageType.Equals(MessageType.session_keepalive.ToString())) return MessageType.session_keepalive;
-                if (messageType.Equals(MessageType.session_reconnect.ToString())) return MessageType.session_reconnect;
-                if (messageType.Equals(MessageType.notification.ToString())) return MessageType.notification;
-                if (messageType.Equals(MessageType.revocation.ToString())) return MessageType.revocation;
-
-                Debug.LogError($"TwitchWebSocket: Message string does not match any known message type! Passed string: '{data}'");
+                return Enum.TryParse(messageType, out MessageType type) ? type : MessageType.revocation;
             }
             catch (Exception e)
             {
@@ -233,6 +211,7 @@ namespace Mahuni.Twitch.Extension
     public class TwitchWelcomeMessage
     {
         public readonly string sessionId;
+
         public TwitchWelcomeMessage(string content)
         {
             JObject root = JObject.Parse(content);
@@ -247,7 +226,7 @@ namespace Mahuni.Twitch.Extension
             }
         }
     }
-    
+
     // https://dev.twitch.tv/docs/eventsub/handling-websocket-events/#keepalive-message
     public class TwitchKeepaliveMessage
     {
@@ -267,7 +246,7 @@ namespace Mahuni.Twitch.Extension
         public TwitchNotificationMessage(string content)
         {
             JObject root = JObject.Parse(content);
-            
+
             JToken typeToken = root.SelectToken("metadata.subscription_type");
             if (typeToken != null)
             {
@@ -277,7 +256,7 @@ namespace Mahuni.Twitch.Extension
             {
                 Debug.LogError($"TwitchWebSocket: Could not get subscription type from TwitchNotificationMessage");
             }
-            
+
             JToken eventToken = root.SelectToken("payload.event");
             if (eventToken != null)
             {
@@ -289,7 +268,7 @@ namespace Mahuni.Twitch.Extension
             }
         }
     }
-    
+
     // https://dev.twitch.tv/docs/eventsub/handling-websocket-events/#reconnect-message
     public class TwitchReconnectMessage
     {
@@ -299,7 +278,7 @@ namespace Mahuni.Twitch.Extension
             //JToken token = root.SelectToken("metadata");
         }
     }
-    
+
     // https://dev.twitch.tv/docs/eventsub/handling-websocket-events/#revocation-message
     public class TwitchRevocationMessage
     {

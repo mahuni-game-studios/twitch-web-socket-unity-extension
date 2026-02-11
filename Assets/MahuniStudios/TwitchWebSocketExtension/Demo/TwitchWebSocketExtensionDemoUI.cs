@@ -115,20 +115,17 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
     private void OnConnectWebSocket()
     {
         webSocketConnectButton.interactable = false;
-        StartCoroutine(EstablishSession());
-    }
-
-    /// <summary>
-    /// Wait for the session to be established and make one subscription to keep the connection open
-    /// </summary>
-    private IEnumerator EstablishSession()
-    {
         twitchWebSocket = new TwitchWebSocket();
-        while (string.IsNullOrEmpty(twitchWebSocket.SessionId) || !twitchWebSocket.Connected) yield return null;
+        twitchWebSocket.OnSession += OnSessionEstablished;
+    }
+    
+    private void OnSessionEstablished()
+    {
         ValidateFields();
-
-        // At least one subscription needs to be sent in the first 10 seconds of connection, else the connection is closed automatically
+        
         twitchWebSocket.OnNotification += OnNotification;
+        
+        // At least one subscription needs to be sent in the first 10 seconds of connection, else the connection is closed automatically
         SubscribeToChat();
     }
 

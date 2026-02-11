@@ -2,11 +2,11 @@
 
 // ReSharper disable InconsistentNaming
 
+using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 
 namespace Mahuni.Twitch.Extension
 {
-    using System;
     using UnityEngine;
     
     /// <summary>
@@ -19,9 +19,9 @@ namespace Mahuni.Twitch.Extension
         /// Make a subscription to the EventSub
         /// </summary>
         /// <param name="subscription">The subscription type to pass</param>
-        public static async Awaitable<(TwitchResponseCode responseCode, string responseBody)> Subscribe(string subscription)
+        public static async Task<(TwitchResponseCode responseCode, string responseBody)> Subscribe(string subscription)
         {
-            return await TwitchRequest.AwaitablePost("eventsub/subscriptions", subscription);
+            return await TwitchRequest.AsyncPost("eventsub/subscriptions", subscription).ConfigureAwait(false);
         }
 
         #region Subscriptions

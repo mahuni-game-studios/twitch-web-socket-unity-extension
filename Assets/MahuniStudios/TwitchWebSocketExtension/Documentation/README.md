@@ -47,17 +47,13 @@ public class YourUnityClass : MonoBehaviour
     
     private void Start()
     { 
-        StartCoroutine(Connect());
+        twitchWebSocket = new TwitchWebSocket();
+        twitchWebSocket.OnSession += OnSessionEstablished;
     }
     
-    private IEnumerator Connect()
+    private void OnSessionEstablished()
     {
-        twitchWebSocket = new TwitchWebSocket();
-        
-        // Wait for the web socket to connect
-        while (string.IsNullOrEmpty(twitchWebSocket.SessionId) || !twitchWebSocket.Connected) yield return null;
-        
-        // TODO: Call your EventSub subscriptions from here!
+       // TODO: Call your EventSub subscriptions from here!
     }
     
     private async void Disconnect()
@@ -84,7 +80,7 @@ public class YourUnityClass : MonoBehaviour
     
     private void Start()
     { 
-        // Connect to the web request class
+        // Connect to the web request class. Make sure you are authorized beforehand
         ConnectTwitchWebRequests(); 
     }
     
@@ -95,15 +91,13 @@ public class YourUnityClass : MonoBehaviour
         if (success)
         {
             // Open a web socket connection
-            StartCoroutine(ConnectWebSocket());
+            twitchWebSocket = new TwitchWebSocket();
+            twitchWebSocket.OnSession += OnSessionEstablished;
         }  
     }
     
-    private IEnumerator ConnectWebSocket()
+    private void OnSessionEstablished()
     {
-        twitchWebSocket = new TwitchWebSocket();        
-        while (string.IsNullOrEmpty(twitchWebSocket.SessionId) || !twitchWebSocket.Connected) yield return null;
-        
         // Call your EventSub subscriptions from here!
         // You have 10 seconds time until the connection will be closed automatically        
         Subscribe();
