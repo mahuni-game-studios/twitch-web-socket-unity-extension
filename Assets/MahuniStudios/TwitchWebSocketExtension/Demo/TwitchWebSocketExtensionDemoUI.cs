@@ -116,7 +116,7 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
     {
         webSocketConnectButton.interactable = false;
         twitchWebSocket = new TwitchWebSocket();
-        twitchWebSocket.OnSession += OnSessionEstablished;
+        twitchWebSocket.OnSessionEstablished += OnSessionEstablished;
     }
     
     private void OnSessionEstablished()
