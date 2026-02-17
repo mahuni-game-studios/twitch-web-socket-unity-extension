@@ -149,9 +149,9 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
     /// <param name="notification">The notification message</param>
     private void OnNotification(TwitchNotificationMessage notification)
     {
-        if (notification.subscriptionType.Equals(TwitchEventSub.ChatReadSubscription.subscriptionType))
+        if (notification.subscriptionType.Equals(ChatSubscription.Read.SUBSCRIPTION))
         {
-            TwitchEventSub.ChatReadEvent chat = new(notification.eventContent);
+            ChatSubscription.ReadEvent chat = new(notification.eventContent);
             Debug.Log($"Chatter '{chat.userName}' wrote: '{chat.message}'");
         }
     }
@@ -162,7 +162,7 @@ public class TwitchWebSocketExtensionUI : MonoBehaviour
     /// </summary>
     private async void SubscribeToChat()
     {
-        TwitchEventSub.ChatReadSubscription chatReadChatReadSubscription = new(twitchWebSocket.SessionId, twitchWebRequestHandler.BroadcasterID, twitchWebRequestHandler.BroadcasterID);
+        ChatSubscription.Read chatReadChatReadSubscription = new(twitchWebSocket.SessionId, twitchWebRequestHandler.BroadcasterID, twitchWebRequestHandler.BroadcasterID);
         var response = await TwitchEventSub.Subscribe(chatReadChatReadSubscription.ToJson());
         if (response.responseCode == TwitchResponseCode.ACCEPTED)
         {
