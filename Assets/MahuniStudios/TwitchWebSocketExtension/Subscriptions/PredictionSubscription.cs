@@ -42,6 +42,8 @@ namespace Mahuni.Twitch.Extension
         public class LockEvent : TwitchSubscriptionEvent
         {
             public readonly string title;
+            public readonly List<(string title, int channelPoints)> outcomes = new ();
+            
             public LockEvent(string data)
             {
                 JObject root = JObject.Parse(data);
@@ -55,6 +57,33 @@ namespace Mahuni.Twitch.Extension
                 {
                     Debug.LogError($"{nameof(LockEvent)}: Could not get title");
                     return;
+                }
+                
+                List<JToken> outcomesList = root["outcomes"]?.Children().ToList();
+                if (outcomesList == null || !outcomesList.Any())
+                {
+                    Debug.LogError($"{nameof(EndEvent)}: Could not get outcomes array");
+                    return;
+                }
+
+                foreach (JToken jToken in outcomesList)
+                {
+                    JObject entry = JObject.Parse(jToken.ToString());
+                    JToken outcomeTitleToken = entry.SelectToken("title");
+                    if (outcomeTitleToken == null)
+                    {
+                        Debug.LogError($"{nameof(LockEvent)}: Could not get outcome title");
+                        return;
+                    }
+                    
+                    JToken channelPointToken = entry.SelectToken("channel_points");
+                    if (channelPointToken == null)
+                    {
+                        Debug.LogError($"{nameof(LockEvent)}: Could not get outcome title");
+                        return;
+                    }
+
+                    outcomes.Add((outcomeTitleToken.ToString(), (int)channelPointToken));
                 }
                 
                 onSubscriptionEvent?.Invoke(this);
