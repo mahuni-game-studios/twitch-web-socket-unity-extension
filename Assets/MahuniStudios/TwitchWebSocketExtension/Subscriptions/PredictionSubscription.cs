@@ -12,6 +12,77 @@ namespace Mahuni.Twitch.Extension
     /// </summary>
     public static class PredictionSubscription
     {
+        #region Progress
+        
+        // https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelpredictionprogress
+        public class Progress : TwitchSubscription
+        {
+            public const string SUBSCRIPTION = "channel.prediction.progress";
+            public Progress(string sessionId, string broadcasterUserId) : base(SUBSCRIPTION)
+            {
+                jsonObject = JObject.FromObject(new
+                {
+                    type = SUBSCRIPTION,
+                    version = "1",
+                    condition = new
+                    {
+                        broadcaster_user_id = broadcasterUserId
+                    },
+                    transport = new
+                    {
+                        method = "websocket",
+                        session_id = sessionId
+                    }
+                });
+            }
+        }
+
+        // https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-prediction-progress-event
+        public class ProgressEvent : TwitchSubscriptionEvent
+        {
+            public readonly List<Prediction.Outcome> outcomes = new();
+
+            public ProgressEvent(string data)
+            {
+                JObject root = JObject.Parse(data);
+                
+                List<JToken> outcomesList = root["outcomes"]?.Children().ToList();
+                if (outcomesList == null || !outcomesList.Any())
+                {
+                    Debug.LogError($"{nameof(ProgressEvent)}: Could not get outcomes array");
+                    return;
+                }
+
+                foreach (JToken jToken in outcomesList)
+                {
+                    JObject entry = JObject.Parse(jToken.ToString());
+                    JToken outcomeTitleToken = entry.SelectToken("title");
+                    if (outcomeTitleToken == null)
+                    {
+                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get outcome title");
+                        return;
+                    }
+                    
+                    JToken channelPointToken = entry.SelectToken("channel_points");
+                    if (channelPointToken == null)
+                    {
+                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get outcome title");
+                        return;
+                    }
+
+                    Prediction.Outcome outcome = new()
+                    {
+                        title = outcomeTitleToken.ToString(),
+                        channel_points = (int)channelPointToken
+                    };
+                    outcomes.Add(outcome);
+                }
+                
+                onSubscriptionEvent?.Invoke(this);
+            }
+        }
+
+        #endregion
         
         #region Lock
         
@@ -38,11 +109,11 @@ namespace Mahuni.Twitch.Extension
             }
         }
         
-        //https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-prediction-lock-event
+        // https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-prediction-lock-event
         public class LockEvent : TwitchSubscriptionEvent
         {
             public readonly string title;
-            public readonly List<(string title, int channelPoints)> outcomes = new ();
+            public readonly List<Prediction.Outcome> outcomes = new();
             
             public LockEvent(string data)
             {
@@ -62,13 +133,14 @@ namespace Mahuni.Twitch.Extension
                 List<JToken> outcomesList = root["outcomes"]?.Children().ToList();
                 if (outcomesList == null || !outcomesList.Any())
                 {
-                    Debug.LogError($"{nameof(EndEvent)}: Could not get outcomes array");
+                    Debug.LogError($"{nameof(LockEvent)}: Could not get outcomes array");
                     return;
                 }
 
                 foreach (JToken jToken in outcomesList)
                 {
                     JObject entry = JObject.Parse(jToken.ToString());
+                    
                     JToken outcomeTitleToken = entry.SelectToken("title");
                     if (outcomeTitleToken == null)
                     {
@@ -82,8 +154,13 @@ namespace Mahuni.Twitch.Extension
                         Debug.LogError($"{nameof(LockEvent)}: Could not get outcome title");
                         return;
                     }
-
-                    outcomes.Add((outcomeTitleToken.ToString(), (int)channelPointToken));
+                    
+                    Prediction.Outcome outcome = new()
+                    {
+                        title = outcomeTitleToken.ToString(),
+                        channel_points = (int)channelPointToken
+                    };
+                    outcomes.Add(outcome);
                 }
                 
                 onSubscriptionEvent?.Invoke(this);
