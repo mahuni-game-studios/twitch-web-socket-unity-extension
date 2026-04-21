@@ -66,7 +66,7 @@ namespace Mahuni.Twitch.Extension
                     JToken channelPointToken = entry.SelectToken("channel_points");
                     if (channelPointToken == null)
                     {
-                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get outcome title");
+                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get channel points");
                         return;
                     }
 
@@ -226,7 +226,8 @@ namespace Mahuni.Twitch.Extension
                     return;
                 }
               
-                List<JToken> outcomes = root["outcomes"]?.Children().ToList();
+                // todo: remove or use?
+                /*List<JToken> outcomes = root["outcomes"]?.Children().ToList();
                 if (outcomes == null || !outcomes.Any())
                 {
                     Debug.LogError($"{nameof(EndEvent)}: Could not get outcomes array");
@@ -238,7 +239,7 @@ namespace Mahuni.Twitch.Extension
                     JObject entry = JObject.Parse(jToken.ToString());
                     JToken outcomeTitleToken = entry.SelectToken("title");
                     JToken userToken = entry.SelectToken("users");
-                }
+                }*/
                 
                 onSubscriptionEvent?.Invoke(this);
             }
