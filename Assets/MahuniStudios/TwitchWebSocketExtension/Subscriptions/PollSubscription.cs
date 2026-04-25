@@ -37,8 +37,36 @@ namespace Mahuni.Twitch.Extension
             }
         }
         
-        // todo begin event
-        
+        // https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-poll-begin-event
+        public class BeginEvent : TwitchSubscriptionEvent
+        {
+            public readonly string title;
+            public readonly List<Poll.Choices> choices = new();
+            
+            public BeginEvent(string data)
+            {
+                JObject root = JObject.Parse(data);
+                
+                JToken titleToken = root.SelectToken("title");
+                if (titleToken == null)
+                {
+                    Debug.LogError($"{nameof(BeginEvent)}: Could not get poll title");
+                    return;
+                }
+                title = titleToken.ToString();
+
+                List<JToken> choicesToken = root.SelectToken("choices")?.Children().ToList();
+                if (choicesToken == null || !choicesToken.Any())
+                {
+                    Debug.LogError($"{nameof(BeginEvent)}: Could not get choices array");
+                    return;
+                }
+                choices = GetChoices(choicesToken);
+                
+                onSubscriptionEvent?.Invoke(this);
+            }
+        }
+
         #endregion
         
         #region Progress
@@ -83,46 +111,14 @@ namespace Mahuni.Twitch.Extension
                     return;
                 }
                 title = titleToken.ToString();
-                
-                List<JToken> choicesList = root["choices"]?.Children().ToList();
-                if (choicesList == null || !choicesList.Any())
+
+                List<JToken> choicesToken = root.SelectToken("choices")?.Children().ToList();
+                if (choicesToken == null || !choicesToken.Any())
                 {
                     Debug.LogError($"{nameof(ProgressEvent)}: Could not get choices array");
                     return;
                 }
-
-                foreach (JToken jToken in choicesList)
-                {
-                    JObject entry = JObject.Parse(jToken.ToString());
-                    JToken choiceTitleToken = entry.SelectToken("title");
-                    if (choiceTitleToken == null)
-                    {
-                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get choice title");
-                        return;
-                    }
-                    
-                    JToken channelPointToken = entry.SelectToken("channel_points_votes");
-                    if (channelPointToken == null)
-                    {
-                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get channel points votes");
-                        return;
-                    }
-                    
-                    JToken votesToken = entry.SelectToken("votes");
-                    if (votesToken == null)
-                    {
-                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get votes");
-                        return;
-                    }
-
-                    Poll.Choices choice = new()
-                    {
-                        title = choiceTitleToken.ToString(),
-                        channel_points_votes = (int)channelPointToken,
-                        votes = (int)votesToken
-                    };
-                    choices.Add(choice);
-                }
+                choices = GetChoices(choicesToken);
                 
                 onSubscriptionEvent?.Invoke(this);
             }
@@ -183,28 +179,16 @@ namespace Mahuni.Twitch.Extension
                     Debug.LogError($"{nameof(EndEvent)}: Could not get choices array");
                     return;
                 }
-
-                foreach (JToken jToken in choicesToken)
-                {
-                    JObject entry = JObject.Parse(jToken.ToString());
-                    JToken idToken = entry.SelectToken("id");
-                    JToken choiceTitleToken = entry.SelectToken("title");
-                    JToken channelPointVotesToken = entry.SelectToken("channel_points_votes");
-                    JToken votesToken = entry.SelectToken("votes");
-                    
-                    Poll.Choices choice = new()
-                    {
-                        id = idToken.ToString(),
-                        title = choiceTitleToken.ToString(),
-                        votes = votesToken.ToObject<int>(),
-                        channel_points_votes = channelPointVotesToken.ToObject<int>()
-                    };
-                    
-                    choices.Add(choice);
-                }
+                choices = GetChoices(choicesToken);
                 
                 JToken isEnabledToken = root.SelectToken("channel_points_voting.is_enabled");
                 JToken voteAmountToken = root.SelectToken("channel_points_voting.amount_per_vote");
+                if (isEnabledToken == null || voteAmountToken == null)
+                {
+                    Debug.LogError($"{nameof(EndEvent)}: Could not get channel point details");
+                    return;
+                }
+                
                 channelPointsVoting = new Poll.ChannelPointsVoting
                 {
                     isEnabled = isEnabledToken.ToObject<bool>(),
@@ -213,6 +197,50 @@ namespace Mahuni.Twitch.Extension
 
                 onSubscriptionEvent?.Invoke(this);
             }
+        }
+
+        #endregion
+
+        #region Helpers
+
+        private static List<Poll.Choices> GetChoices(List<JToken> choices)
+        {
+            List<Poll.Choices> result = new();
+            foreach (JToken jToken in choices)
+            {
+                JObject entry = JObject.Parse(jToken.ToString());
+                JToken choiceTitleToken = entry.SelectToken("title");
+                if (choiceTitleToken == null)
+                {
+                    Debug.LogError($"{nameof(PollSubscription)}: Could not get choice title");
+                    return result;
+                }
+                    
+                JToken channelPointToken = entry.SelectToken("channel_points_votes");
+                if (channelPointToken == null)
+                {
+                    Debug.LogError($"{nameof(PollSubscription)}: Could not get choice channel points votes");
+                    return result;
+                }
+                    
+                JToken votesToken = entry.SelectToken("votes");
+                if (votesToken == null)
+                {
+                    Debug.LogError($"{nameof(PollSubscription)}: Could not get choice votes");
+                    return result;
+                }
+
+                Poll.Choices choice = new()
+                {
+                    title = choiceTitleToken.ToString(),
+                    channel_points_votes = (int)channelPointToken,
+                    votes = (int)votesToken
+                };
+                
+                result.Add(choice);
+            }
+
+            return result;
         }
 
         #endregion

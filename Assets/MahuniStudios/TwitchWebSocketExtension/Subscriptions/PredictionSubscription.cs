@@ -46,37 +46,13 @@ namespace Mahuni.Twitch.Extension
             {
                 JObject root = JObject.Parse(data);
                 
-                List<JToken> outcomesList = root["outcomes"]?.Children().ToList();
-                if (outcomesList == null || !outcomesList.Any())
+                List<JToken> outcomesToken = root.SelectToken("outcomes")?.Children().ToList();
+                if (outcomesToken == null || !outcomesToken.Any())
                 {
                     Debug.LogError($"{nameof(ProgressEvent)}: Could not get outcomes array");
                     return;
                 }
-
-                foreach (JToken jToken in outcomesList)
-                {
-                    JObject entry = JObject.Parse(jToken.ToString());
-                    JToken outcomeTitleToken = entry.SelectToken("title");
-                    if (outcomeTitleToken == null)
-                    {
-                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get outcome title");
-                        return;
-                    }
-                    
-                    JToken channelPointToken = entry.SelectToken("channel_points");
-                    if (channelPointToken == null)
-                    {
-                        Debug.LogError($"{nameof(ProgressEvent)}: Could not get channel points");
-                        return;
-                    }
-
-                    Prediction.Outcome outcome = new()
-                    {
-                        title = outcomeTitleToken.ToString(),
-                        channel_points = (int)channelPointToken
-                    };
-                    outcomes.Add(outcome);
-                }
+                outcomes = GetOutcomes(outcomesToken);
                 
                 onSubscriptionEvent?.Invoke(this);
             }
@@ -120,48 +96,20 @@ namespace Mahuni.Twitch.Extension
                 JObject root = JObject.Parse(data);
                 
                 JToken titleToken = root.SelectToken("title");
-                if (titleToken != null)
-                {
-                    title = titleToken.ToString();
-                }
-                else
+                if (titleToken == null)
                 {
                     Debug.LogError($"{nameof(LockEvent)}: Could not get title");
                     return;
                 }
+                title = titleToken.ToString();
                 
-                List<JToken> outcomesList = root["outcomes"]?.Children().ToList();
-                if (outcomesList == null || !outcomesList.Any())
+                List<JToken> outcomesToken = root.SelectToken("outcomes")?.Children().ToList();
+                if (outcomesToken == null || !outcomesToken.Any())
                 {
                     Debug.LogError($"{nameof(LockEvent)}: Could not get outcomes array");
                     return;
                 }
-
-                foreach (JToken jToken in outcomesList)
-                {
-                    JObject entry = JObject.Parse(jToken.ToString());
-                    
-                    JToken outcomeTitleToken = entry.SelectToken("title");
-                    if (outcomeTitleToken == null)
-                    {
-                        Debug.LogError($"{nameof(LockEvent)}: Could not get outcome title");
-                        return;
-                    }
-                    
-                    JToken channelPointToken = entry.SelectToken("channel_points");
-                    if (channelPointToken == null)
-                    {
-                        Debug.LogError($"{nameof(LockEvent)}: Could not get outcome title");
-                        return;
-                    }
-                    
-                    Prediction.Outcome outcome = new()
-                    {
-                        title = outcomeTitleToken.ToString(),
-                        channel_points = (int)channelPointToken
-                    };
-                    outcomes.Add(outcome);
-                }
+                outcomes = GetOutcomes(outcomesToken);
                 
                 onSubscriptionEvent?.Invoke(this);
             }
@@ -199,52 +147,77 @@ namespace Mahuni.Twitch.Extension
         {
             public readonly string title;
             public readonly string winningOutcomeId;
+            public readonly List<Prediction.Outcome> outcomes = new();
             
             public EndEvent(string data)
             {
                 JObject root = JObject.Parse(data);
                 
                 JToken titleToken = root.SelectToken("title");
-                if (titleToken != null)
-                {
-                    title = titleToken.ToString();
-                }
-                else
+                if (titleToken == null)
                 {
                     Debug.LogError($"{nameof(EndEvent)}: Could not get title");
                     return;
                 }
+                title = titleToken.ToString();
                 
                 JToken winningOutcomeToken = root.SelectToken("winning_outcome_id");
-                if (winningOutcomeToken != null)
-                {
-                    winningOutcomeId = winningOutcomeToken.ToString();
-                }
-                else
+                if (winningOutcomeToken == null)
                 {
                     Debug.LogError($"{nameof(EndEvent)}: Could not get winning outcome");
                     return;
                 }
+                winningOutcomeId = winningOutcomeToken.ToString();
               
-                // todo: remove or use?
-                /*List<JToken> outcomes = root["outcomes"]?.Children().ToList();
-                if (outcomes == null || !outcomes.Any())
+                List<JToken> outcomesToken = root.SelectToken("outcomes")?.Children().ToList();
+                if (outcomesToken == null || !outcomesToken.Any())
                 {
                     Debug.LogError($"{nameof(EndEvent)}: Could not get outcomes array");
                     return;
                 }
+                outcomes = GetOutcomes(outcomesToken);
 
-                foreach (JToken jToken in outcomes)
-                {
-                    JObject entry = JObject.Parse(jToken.ToString());
-                    JToken outcomeTitleToken = entry.SelectToken("title");
-                    JToken userToken = entry.SelectToken("users");
-                }*/
-                
                 onSubscriptionEvent?.Invoke(this);
             }
         }
         
+        #endregion
+
+        #region Helpers
+
+        private static List<Prediction.Outcome> GetOutcomes(List<JToken> outcomes)
+        {
+            List<Prediction.Outcome> result = new();
+            foreach (JToken jToken in outcomes)
+            {
+                JObject entry = JObject.Parse(jToken.ToString());
+
+                JToken outcomeTitleToken = entry.SelectToken("title");
+                if (outcomeTitleToken == null)
+                {
+                    Debug.LogError($"{nameof(PredictionSubscription)}: Could not get outcome title");
+                    return result;
+                }
+
+                JToken channelPointToken = entry.SelectToken("channel_points");
+                if (channelPointToken == null)
+                {
+                    Debug.LogError($"{nameof(PredictionSubscription)}: Could not get outcome title");
+                    return result;
+                }
+
+                Prediction.Outcome outcome = new()
+                {
+                    title = outcomeTitleToken.ToString(),
+                    channel_points = (int)channelPointToken
+                };
+                
+                result.Add(outcome);
+            }
+            
+            return result;
+        }
+
         #endregion
     }
 }

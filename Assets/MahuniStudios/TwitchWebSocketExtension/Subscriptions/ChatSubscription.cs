@@ -47,26 +47,20 @@ namespace Mahuni.Twitch.Extension
                 JObject root = JObject.Parse(data);
                 
                 JToken nameToken = root.SelectToken("chatter_user_name");
-                if (nameToken != null)
-                {
-                    userName = nameToken.ToString();
-                }
-                else
+                if (nameToken == null)
                 {
                     Debug.LogError($"{nameof(ReadEvent)}: Could not get user name");
                     return;
                 }
+                userName = nameToken.ToString();
                 
                 JToken msgToken = root.SelectToken("message.text");
-                if (msgToken != null)
-                {
-                    message = msgToken.ToString();
-                }
-                else
+                if (msgToken == null)
                 {
                     Debug.LogError($"{nameof(ReadEvent)}: Could not get message");
                     return;
                 }
+                message = msgToken.ToString();
                 
                 onSubscriptionEvent?.Invoke(this);
             }
