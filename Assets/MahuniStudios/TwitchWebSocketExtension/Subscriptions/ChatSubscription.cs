@@ -36,11 +36,12 @@ namespace Mahuni.Twitch.Extension
             }
         }
         
-        //https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-chat-message-event
+        //https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-chat-notification-event
         public class ReadEvent : TwitchSubscriptionEvent
         {
             public readonly string userName;
             public readonly string message;
+            public readonly string color;
             
             public ReadEvent(string data)
             {
@@ -61,6 +62,14 @@ namespace Mahuni.Twitch.Extension
                     return;
                 }
                 message = msgToken.ToString();
+                
+                JToken colorToken = root.SelectToken("color");
+                if (colorToken == null)
+                {
+                    Debug.LogError($"{nameof(ReadEvent)}: Could not get color");
+                    return;
+                }
+                color = colorToken.ToString();
                 
                 onSubscriptionEvent?.Invoke(this);
             }
