@@ -129,6 +129,7 @@ namespace Mahuni.Twitch.Extension
         #region End
         
         // https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelpollend
+        // ATTENTION - Twitch calls this event twice: when poll actually ends and after the Twitch UI overlay closes!
         public class End : TwitchSubscription
         {
             public const string SUBSCRIPTION = "channel.poll.end";
